@@ -1,0 +1,455 @@
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+
+<body>
+    <div style="display:flex">
+        <div style="width: 30%;">
+            <div style="width: 100%;">
+                <label for="potSelector">Choose a pot:</label>
+                <select id="potSelector">
+                    <option value="">Choose a pot</option>
+                    <option value="simple">Simple pot</option>
+                    <option value="cylinder">Cylinder pot</option>
+                </select>
+            </div>
+            <div style="margin-top: 20px ; margin-bottom: 20px;">
+
+                <label for="colorPicker">Choose pot color:</label>
+                <input type="color" id="colorPicker" name="colorPicker" value="#E39F72">
+            </div>
+
+            <div>
+                <label for="plantSelector">Choose a plant:</label>
+                <select id="plantSelector">
+                    <option value="">Choose a plant</option>
+                    <option value="hoacuc">Hoa cúc</option>
+                    <option value="tulip">Hoa tulip</option>
+                </select>
+            </div>
+
+        </div>
+        <div id="pot-scene-container" style="position: relative; width: 30vw; height:30vw; margin-top: 30vh;">
+            <canvas id="canvas-z1"
+                style="position: absolute; top: 0; left: 0; z-index: 1; width: 50%; height: 50%;"></canvas>
+            <canvas id="canvas-z2"
+                style="position: absolute; top: 0; left: 0; z-index: 2; width: 50%; height: 50%;"></canvas>
+            <canvas id="canvas-z4"
+                style="position: absolute; top: 0; left: 0; z-index: 4; width: 50%; height: 50%;"></canvas>
+
+
+            <img id="plant" src="" alt="Mature Plant"
+                style=" position: absolute; top: 0; left: 0;  height: 50%; z-index: 3; transition: opacity 0.6s;">
+        </div>
+    </div>
+
+    <script>
+        const z1Image = new Image();
+        const z2Image = new Image(); z2Image.src = 'images/z2/soil.png'; // Realistic soil texture
+        const z3Image = new Image();
+        const z4Image = new Image();
+
+        // Constant for the highest Z-index during active drag
+        const Z_DRAGGING = 99;
+        //const plantImages = [];
+        let currentPlantIndex = 0;
+        let plantIntervalId = null; // Store interval ID globally
+        // Plant images for cycling
+        function cyclePlantImage(plantImages) {
+            const plant = document.getElementById('plant');
+            if (!plant) return;
+
+            // Fade out
+            plant.style.opacity = 0;
+
+            setTimeout(() => {
+                // Change image source
+                currentPlantIndex = (currentPlantIndex + 1) % plantImages.length;
+                plant.src = plantImages[currentPlantIndex];
+
+                // Fade in
+                plant.style.opacity = 1;
+                positionPlantImage();
+            }, 600); // Match transition duration
+        }
+
+        // --- FIX: Add a redrawScene function to centralize all redraws ---
+        function redrawScene() {
+            setCanvasDimensionsToViewport();
+            drawSoil(z2Image, 'canvas-z2', z1Image);
+            updatePotColor(document.getElementById("colorPicker")?.value);
+            positionPlantImage();
+            // Plant image is handled by <img src> change
+        }
+
+        function positionPlantImage() {
+            const plant = document.getElementById('plant');
+            const potContainer = document.getElementById('pot-scene-container');
+            const canvas = document.getElementById('canvas-z1');
+            if (!plant || !potContainer || !canvas) return;
+
+            // Get canvas dimensions
+            const width = canvas.width;
+            const height = canvas.height;
+
+            // Set plant image size (same as canvas, but you can adjust)
+            //plant.style.width = width + 'px';
+            //plant.style.height = height + 'px';
+
+            // Center horizontally
+            plant.style.left = '0px';
+
+            // Conceal bottom 20%: move plant up so 20% is hidden
+            plant.style.top = '-' + Math.floor(height * 0.4) + 'px';
+        }
+
+
+        function setCanvasDimensionsToViewport() {
+            // 1. Define the viewport percentages from your container CSS
+            const VW_PERCENT = 0.3; // 40vw
+            const VH_PERCENT = 0.3; // 40vh
+
+            // 2. Calculate the pixel dimensions based on the current window size
+            const viewportWidth = window.innerWidth;
+            const viewportHeight = window.innerHeight;
+
+            // Use Math.floor to ensure whole pixel values
+            const newWidth = Math.floor(viewportWidth * VW_PERCENT);
+            const newHeight = Math.floor(viewportWidth * VH_PERCENT);
+
+            // 3. Select all canvases that need to be resized
+            const canvases = document.querySelectorAll('#pot-scene-container canvas');
+
+            if (!canvases) return;
+
+            canvases.forEach(canvas => {
+                // Set the internal drawing resolution (the ATTRIBUTES)
+                canvas.width = newWidth;
+                canvas.height = newHeight;
+
+                // Note: The visual size is handled by the CSS 'width: 100%; height: 100%;' 
+                // relative to the 40vw/40vh container.
+            });
+
+        }
+
+        // NOTE: You must define a redrawScene function that calls 
+        // drawSoil, drawPlant, and updatePotColor with the current color.
+
+
+
+
+
+        function drawSoil(soilTextureImage, targetCanvasId, potMaskImage) {
+            const targetCanvas = document.getElementById(targetCanvasId);
+            const context = targetCanvas.getContext('2d');
+            const WIDTH = targetCanvas.width;
+            const HEIGHT = targetCanvas.height;
+
+
+            // --- 1. Calculate Soil Dimensions (Based on original CSS) ---
+            const soilWidth = WIDTH * 0.7;
+            const soilHeight = HEIGHT * 0.3;
+            const soilY = HEIGHT * 0.03; // Starting Y position (top: 15%)
+            const soilX = (WIDTH - soilWidth) / 2; // Centered X position
+            const centerX = soilX + soilWidth / 2;
+            const centerY = soilY + soilHeight / 2;
+
+
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = WIDTH;
+            tempCanvas.height = HEIGHT;
+            const tempCtx = tempCanvas.getContext('2d');
+
+            // --- 2. Define the Oval Shape (Clipping Path) ---
+            tempCtx.save(); // Save the canvas state before clipping
+
+            tempCtx.beginPath();
+            tempCtx.ellipse(
+                centerX,
+                centerY,
+                soilWidth / 2,
+                soilHeight / 2,
+                0, 0, 2 * Math.PI
+            );
+
+            // Create the clipping mask (only drawing inside this shape will be visible)
+            tempCtx.clip();
+
+            // --- 3. Create and Apply the Texture Pattern ---
+            // Create a pattern from your realistic soil image
+            const pattern = tempCtx.createPattern(soilTextureImage, 'repeat');
+            tempCtx.fillStyle = pattern;
+            // Fill the entire canvas rectangle. The 'clip()' command ensures 
+            // only the oval area is actually filled with the pattern.
+            tempCtx.fillRect(0, 0, WIDTH, HEIGHT);
+
+            // --- 4. Apply Dome Volume and Moisture Gradient ---
+
+            // Create a radial gradient to simulate the dome shape (lighter center, darker edges)
+            const gradient = tempCtx.createRadialGradient(
+                centerX, centerY, soilWidth * 0.1, // Inner circle (peak of the dome, bright)
+                centerX, centerY, soilWidth * 0.6 // Outer circle (shadowed edge)
+            );
+            // Dark color for the edges (moist shadow)
+            gradient.addColorStop(0, 'rgba(255, 255, 255, 0.2)'); // Light highlight at center peak
+            gradient.addColorStop(0.4, 'rgba(0, 0, 0, 0.1)');     // Slight darkening
+            gradient.addColorStop(1, 'rgba(0, 0, 0, 0.6)');       // Heavy shadow/darkness at rim
+
+            tempCtx.globalCompositeOperation = 'overlay';
+            tempCtx.fillStyle = gradient;
+
+            // Use the 'overlay' blending mode to subtly mix the gradient over the texture
+            tempCtx.fillRect(0, 0, WIDTH, HEIGHT);
+
+            // --- 5. Clean Up ---
+
+            // Reset blending mode
+            tempCtx.globalCompositeOperation = 'source-over';
+
+            tempCtx.restore(); // Restore the canvas state (removes the clipping mask)
+
+            // Draw the pot mask to define the soil area
+            const maskCanvas = document.createElement('canvas');
+            maskCanvas.width = WIDTH;
+            maskCanvas.height = HEIGHT;
+            const maskCtx = maskCanvas.getContext('2d');
+            maskCtx.drawImage(potMaskImage, 0, 0, WIDTH, HEIGHT);
+
+            // 4. Use the mask alpha to restrict soil area
+            context.clearRect(0, 0, WIDTH, HEIGHT);
+            context.save();
+            context.drawImage(maskCanvas, 0, 0); // Draw mask
+            context.globalCompositeOperation = 'source-in'; // Only keep where mask is opaque
+            context.drawImage(tempCanvas, 0, 0); // Draw soil pattern inside mask
+            context.globalCompositeOperation = 'source-over';
+            context.restore();
+
+        }
+
+
+        // Function to draw and color a single grayscale image onto a target canvas
+        function colorizePotLayer(grayscaleImage, hexColor, targetCanvasId) {
+            const targetCanvas = document.getElementById(targetCanvasId);
+            const ctx = targetCanvas.getContext('2d');
+            const WIDTH = targetCanvas.width;
+            const HEIGHT = targetCanvas.height;
+
+            // A. CLEAR THE TARGET CANVAS
+            ctx.clearRect(0, 0, WIDTH, HEIGHT);
+
+            // B. USE A TEMPORARY CANVAS FOR BLENDING (Necessary for multiply mode)
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = WIDTH;
+            tempCanvas.height = HEIGHT;
+            const tempCtx = tempCanvas.getContext('2d');
+
+            // --- STEP 1: Create the Pot Shape (The Mask) ---
+            // Draw the grayscale image first. Its opaque areas define the pot shape.
+            tempCtx.drawImage(grayscaleImage, 0, 0, WIDTH, HEIGHT);
+
+            // --- STEP 2: Apply the Color (Restricted by the Mask) ---
+            tempCtx.fillStyle = hexColor;
+
+            // 'source-atop' means the new color will only be drawn WHERE it overlaps 
+            // the existing (pot) shape, thereby restricting the fill to the pot area.
+            tempCtx.globalCompositeOperation = 'source-atop';
+
+
+            // Fill the entire canvas rectangle, but only the pot shape gets the color.
+            tempCtx.fillRect(0, 0, WIDTH, HEIGHT);
+
+            // --- STEP 3: Apply the Shadows/Texture ---
+            // 'multiply' darkens based on the grayscale values, creating shadows.
+            tempCtx.globalCompositeOperation = 'multiply';
+
+            // Draw the grayscale image again to overlay the shadow/texture detail.
+            tempCtx.drawImage(grayscaleImage, 0, 0, WIDTH, HEIGHT);
+
+            // --- STEP 4: CLEAN UP AND TRANSFER ---
+
+            // Reset blend mode for future operations
+            tempCtx.globalCompositeOperation = 'source-over';
+
+            // TRANSFER THE FINAL COLORED POT to the final (Z1 or Z4) canvas
+            ctx.drawImage(tempCanvas, 0, 0);
+        }
+
+        // Assuming z1Image and z4Image are loaded Image objects
+        function updatePotColor(newHexColor) {
+            // 1. Color the Pot Base (Z-index 1)
+            colorizePotLayer(z1Image, newHexColor, 'canvas-z1');
+
+            // 2. Color the Pot Rim/Wall Overlay (Z-index 4)
+            // The flower (Z-index 3) remains visible between these two canvas layers.
+            colorizePotLayer(z4Image, newHexColor, 'canvas-z4');
+        }
+
+        function changePotType(potType) {
+            const folder = 'images/';
+            const potBase = `z1/back-${potType}`;
+            const potRim = `z4/front-${potType}`;
+            z1Image.src = `${folder}${potBase}.png`;
+            z4Image.src = `${folder}${potRim}.png`;
+
+        }
+
+        function changePlantType(plantType, plantElement) {
+            if (plantElement.style.display === 'none') {
+                plantElement.style.display = 'block';
+            }
+            const folder = 'images/z3/';
+            const plantImagePrefix = `${folder}${plantType}`;
+            return plantImagePrefix
+        }
+
+
+        // --- FIX: Always redraw scene after image loads ---
+        z1Image.onload = redrawScene;
+        z2Image.onload = z1Image.src ? redrawScene : null; // Only if z1Image is already set
+        z4Image.onload = redrawScene;
+
+        // Ensure images are loaded before drawing (Critical step)
+        document.addEventListener("DOMContentLoaded", function () {
+            setCanvasDimensionsToViewport();
+
+            const plantElement = document.getElementById('plant');
+            const srcAttr = plantElement.getAttribute('src');
+            if (!srcAttr || srcAttr.trim() === '') {
+                plantElement.style.display = 'none';
+            }
+
+
+            const potSelector = document.getElementById('potSelector');
+            potSelector.addEventListener('change', function () {
+                const selectedPot = potSelector.value;
+                changePotType(selectedPot);
+                // Redraw the scene after changing images
+            });
+
+            const plantSelector = document.getElementById('plantSelector');
+            plantSelector.addEventListener('change', function () {
+                if (plantIntervalId) {
+                    clearInterval(plantIntervalId);
+                    plantIntervalId = null;
+                }
+
+                currentPlantIndex = 0; // Reset index
+                const plantImages = []; // Clear previous images
+                const selectedPlant = plantSelector.value;
+                const plantImagePrefix = changePlantType(selectedPlant, plantElement);
+
+
+                plantElement.style.opacity = 0; // Start with invisible for fade-in effect
+                for (i = 0; i < 4; i++) {
+                    plantImages.push(`${plantImagePrefix}-${i + 1}.png`);
+                }
+
+
+                // FIX: Set initial image immediately
+                plantElement.src = plantImages[0];
+                plantElement.style.opacity = 1;
+                positionPlantImage();
+
+
+                plantIntervalId = setInterval(() => {
+                    cyclePlantImage(plantImages);
+                }, 3000); // Change image every 3 seconds
+            });
+
+
+            const picker = document.getElementById("colorPicker");
+            picker.addEventListener("input", function () {
+                if (z1Image.src && z4Image.src) {
+                    updatePotColor(picker.value);
+                }
+            });
+
+
+            //const potRim = document.getElementById('canvas-z4');
+            //const potBase = document.getElementById('canvas-z1');
+            //const soil = document.getElementById('canvas-z2');
+
+            // Draggable Entity 1: The Pot (Z4 is the control element)
+            // Z1 and Z2 move when Z4 is dragged.
+            //makeChainDraggable(potRim, [potBase, soil]);
+
+            // Draggable Entity 2: The Plant (Independent)
+            //makeChainDraggable(plantElement);
+        });
+
+        window.addEventListener("resize", function () {
+            redrawScene();
+        });
+
+        function makeChainDraggable(mainElement, chainedElements = []) {
+            let isDragging = false;
+            let initialX = 0;
+            let initialY = 0;
+            let xOffset = 0;
+            let yOffset = 0;
+
+            // Set up event listeners only on the main element
+            mainElement.addEventListener("mousedown", dragStart);
+            document.addEventListener("mouseup", dragEnd);
+            document.addEventListener("mousemove", drag);
+
+            // Initial setup: Store the base Z-index
+            const baseZIndex = mainElement.style.zIndex;
+
+            function dragStart(e) {
+                e.preventDefault();
+
+                // Calculate the initial offset from the cursor
+                initialX = e.clientX - xOffset;
+                initialY = e.clientY - yOffset;
+
+                isDragging = true;
+                mainElement.style.cursor = 'grabbing';
+
+                // Boost Z-index of the main element to ensure it's on top of everything
+                mainElement.style.zIndex = Z_DRAGGING;
+            }
+
+            function dragEnd(e) {
+                if (!isDragging) return;
+
+                initialX = xOffset;
+                initialY = yOffset;
+                isDragging = false;
+                mainElement.style.cursor = 'grab';
+
+                // Reset the main element's Z-index to its original base value
+                mainElement.style.zIndex = baseZIndex;
+            }
+
+            function drag(e) {
+                if (!isDragging) return;
+
+                e.preventDefault();
+
+                // 1. Calculate the new total displacement
+                xOffset = e.clientX - initialX;
+                yOffset = e.clientY - initialY;
+
+                // 2. Apply the transform to the main element (Z4)
+                setTranslate(xOffset, yOffset, mainElement);
+
+                // 3. 💥 CHAIN OF EVENT: Apply the exact same transform to the chained elements (Z1, Z2)
+                chainedElements.forEach(el => {
+                    setTranslate(xOffset, yOffset, el);
+                });
+            }
+
+            function setTranslate(xPos, yPos, el) {
+                el.style.transform = `translate3d(${xPos}px, ${yPos}px, 0)`;
+            }
+        }
+    </script>
+</body>
+
+</html>
