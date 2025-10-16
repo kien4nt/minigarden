@@ -69,7 +69,9 @@
             setTimeout(() => {
                 // Change image source
                 currentPlantIndex = (currentPlantIndex + 1) % plantImages.length;
-                plant.src = plantImages[currentPlantIndex];
+                const currentImg = `${plantImages[currentPlantIndex]}`;
+                plant.src = currentImg;
+                plant.alt = currentImg;
 
                 // Fade in
                 plant.style.opacity = 1;
@@ -351,7 +353,9 @@
 
 
                 // FIX: Set initial image immediately
-                plantElement.src = plantImages[0];
+                const currentImg = `${plantImages[0]}`;
+                plantElement.src = currentImg;
+                plantElement.alt = currentImg;
                 plantElement.style.opacity = 1;
                 positionPlantImage();
 
